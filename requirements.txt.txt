@@ -1,0 +1,9 @@
+# Core dependencies
+requests
+beautifulsoup4
+python-dotenv
+google-generativeai
+
+# Optional (for advanced agentic workflows)
+langchain
+langgraph
