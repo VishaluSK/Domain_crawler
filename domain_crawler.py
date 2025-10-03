@@ -1,18 +1,19 @@
 import os
 import time
-from dotenv import load_dotenv
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from collections import deque
+from dotenv import load_dotenv
 import google.generativeai as genai
+from google.api_core.exceptions import ResourceExhausted
 
 # ----------------- Load API Key from .env -----------------
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not GEMINI_API_KEY:
-    raise ValueError("API Key not found. Please set GEMINI_API_KEY in your .env file.")
+    raise ValueError("❌ No GEMINI_API_KEY found in .env file!")
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-2.0-flash")
@@ -38,13 +39,12 @@ def crawl_domain(start_url, max_pages=20):
                 continue
 
             visited.add(url)
-
             soup = BeautifulSoup(response.text, "html.parser")
             text = soup.get_text(" ", strip=True)
 
             results.append({
                 "url": url,
-                "content": text[:2000]  # limit content to avoid huge prompts
+                "content": text[:2000]  # keep content limited
             })
 
             # Collect same-domain links
@@ -53,14 +53,14 @@ def crawl_domain(start_url, max_pages=20):
                 if urlparse(href).netloc == urlparse(start_url).netloc and href not in visited:
                     queue.append(href)
 
-            time.sleep(1)  # polite crawl delay
+            time.sleep(1)  # polite delay
 
         except Exception as e:
             print(f"❌ Error crawling {url}: {e}")
 
     return results
 
-# ----------------- Gemini Summarizer with Rate-Limit Handling -----------------
+# ----------------- Gemini Summarizer -----------------
 def gemini_summarize(pages):
     results = []
 
@@ -69,34 +69,22 @@ def gemini_summarize(pages):
         return results
 
     for page in pages:
-        retries = 3
-        summary = ""
-        while retries > 0:
+        prompt = f"Summarize this webpage content:\n\n{page['content']}"
+        while True:
             try:
-                prompt = f"Summarize this webpage content:\n\n{page['content']}"
                 response = model.generate_content(prompt)
                 summary = response.text
-                break  # success
-            except genai.ApiError as e:
-                if "429" in str(e):
-                    # Parse retry_delay if available, default to 35s
-                    retry_delay = 35
-                    print(f"⚠️ Rate limit hit. Retrying in {retry_delay} seconds...")
-                    time.sleep(retry_delay)
-                    retries -= 1
-                else:
-                    summary = f"Error summarizing page: {e}"
-                    break
+                results.append({"url": page["url"], "summary": summary})
+                break  # success, exit retry loop
+
+            except ResourceExhausted:
+                print("⚠️ Quota hit. Waiting 60s before retry...")
+                time.sleep(60)  # wait and retry
+
             except Exception as e:
-                summary = f"Error summarizing page: {e}"
-                break
-
-        if not summary:
-            summary = "⚠️ Could not summarize due to repeated rate limits or errors."
-
-        results.append({"url": page["url"], "summary": summary})
-
-        time.sleep(2)  # small delay between summarizations to avoid hitting limits
+                print(f"❌ Error summarizing page {page['url']}: {e}")
+                results.append({"url": page["url"], "summary": f"Error: {e}"})
+                break  # don't retry other errors
 
     return results
 
@@ -106,11 +94,14 @@ if __name__ == "__main__":
     if not start_url.startswith("http"):
         start_url = "https://" + start_url
 
-    pages = crawl_domain(start_url, max_pages=20)
+    # Step 1: Crawl domain
+    pages = crawl_domain(start_url, max_pages=10)  # reduce pages to avoid quota burn
     print(f"\n✅ Crawled {len(pages)} pages")
 
+    # Step 2: Summarize pages
     summaries = gemini_summarize(pages)
 
+    # Step 3: Print results
     print("\n===== Domain Crawl + Gemini Summaries =====\n")
     for res in summaries:
         print(f"URL: {res['url']}")
