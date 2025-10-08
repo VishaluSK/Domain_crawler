@@ -1,24 +1,19 @@
-import os
-import time
-from dotenv import load_dotenv
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 from collections import deque
+import time
 import google.generativeai as genai
 
-# ----------------- Load API Key from .env -----------------
-load_dotenv()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
-if not GEMINI_API_KEY:
-    raise ValueError("API Key not found. Please set GEMINI_API_KEY in your .env file.")
+# ----------------- Hardcoded API Key -----------------
+# ⚠️ Replace this string with your actual API key from Google AI Studio
+GEMINI_API_KEY = "paste your gemini api"  
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-2.0-flash")
 
 # ----------------- Domain Crawler -----------------
-def crawl_domain(start_url, max_pages=20):
+def crawl_domain(start_url, max_pages=20):   # you can increase max_pages if needed
     visited = set()
     queue = deque([start_url])
     results = []
@@ -44,7 +39,7 @@ def crawl_domain(start_url, max_pages=20):
 
             results.append({
                 "url": url,
-                "content": text[:2000]  # limit content to avoid huge prompts
+                "content": text[:2000]  # keep content limited to avoid huge prompts
             })
 
             # Collect same-domain links
@@ -53,14 +48,14 @@ def crawl_domain(start_url, max_pages=20):
                 if urlparse(href).netloc == urlparse(start_url).netloc and href not in visited:
                     queue.append(href)
 
-            time.sleep(1)  # polite crawl delay
+            time.sleep(1)  # polite delay between requests
 
         except Exception as e:
             print(f"❌ Error crawling {url}: {e}")
 
     return results
 
-# ----------------- Gemini Summarizer with Rate-Limit Handling -----------------
+# ----------------- Gemini Summarizer -----------------
 def gemini_summarize(pages):
     results = []
 
@@ -69,34 +64,14 @@ def gemini_summarize(pages):
         return results
 
     for page in pages:
-        retries = 3
-        summary = ""
-        while retries > 0:
-            try:
-                prompt = f"Summarize this webpage content:\n\n{page['content']}"
-                response = model.generate_content(prompt)
-                summary = response.text
-                break  # success
-            except genai.ApiError as e:
-                if "429" in str(e):
-                    # Parse retry_delay if available, default to 35s
-                    retry_delay = 35
-                    print(f"⚠️ Rate limit hit. Retrying in {retry_delay} seconds...")
-                    time.sleep(retry_delay)
-                    retries -= 1
-                else:
-                    summary = f"Error summarizing page: {e}"
-                    break
-            except Exception as e:
-                summary = f"Error summarizing page: {e}"
-                break
-
-        if not summary:
-            summary = "⚠️ Could not summarize due to repeated rate limits or errors."
+        try:
+            prompt = f"Summarize this webpage content:\n\n{page['content']}"
+            response = model.generate_content(prompt)
+            summary = response.text
+        except Exception as e:
+            summary = f"Error summarizing page: {e}"
 
         results.append({"url": page["url"], "summary": summary})
-
-        time.sleep(2)  # small delay between summarizations to avoid hitting limits
 
     return results
 
@@ -106,11 +81,14 @@ if __name__ == "__main__":
     if not start_url.startswith("http"):
         start_url = "https://" + start_url
 
+    # Step 1: Crawl domain
     pages = crawl_domain(start_url, max_pages=20)
     print(f"\n✅ Crawled {len(pages)} pages")
 
+    # Step 2: Summarize pages
     summaries = gemini_summarize(pages)
 
+    # Step 3: Print results
     print("\n===== Domain Crawl + Gemini Summaries =====\n")
     for res in summaries:
         print(f"URL: {res['url']}")
