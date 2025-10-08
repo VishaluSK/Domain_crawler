@@ -31,7 +31,7 @@ cd domain_crawler
 install the requirements.txt
 pip install -r requirements.txt
 
-then, activate the cretaed enviornment
+then, activate the created enviornment
 env\scripts\activate
 
 execute the file
