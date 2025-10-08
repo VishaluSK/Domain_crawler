@@ -10,14 +10,14 @@ An agentic tool that uses **LangGraph** and **Google Gemini API** to crawl and s
 Before running this project, you need an API key from Google Gemini. Follow these steps:
 1. Go to [Google AI Studio](https://aistudio.google.com/).
 2. Sign in with your Google account.
-3. Click on **Get API Key** (you’ll see this in the top right menu under "Get API key").
+3. Click on **Get API Key** and in the right upper click on "Create API" and create it and use it for future reference
 4. Copy the generated API key (it will look like a long random string).
-   (example it look like="Awcccc-xxxxxxxxxx")
 
+   
 ## Setting Up the API Key
 
 We store the API key in a `.env` file so it is **not hardcoded** in the code for safety purpose
-1. create your project folder and crate a new file with ".env" name
+1. create your project folder and create a new file with ".env" name
 2. Open `.env` and paste this line:
    GEMINI_API_KEY=your_api_key_here
    Replace `your_api_key_here` with the key you copied from Google AI Studio.
@@ -31,7 +31,7 @@ cd domain_crawler
 install the requirements.txt
 pip install -r requirements.txt
 
-then, activate the cretaed enviornment
+then, activate the created enviornment
 env\scripts\activate
 
 execute the file
