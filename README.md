@@ -17,7 +17,7 @@ Before running this project, you need an API key from Google Gemini. Follow thes
 ## Setting Up the API Key
 
 We store the API key in a `.env` file so it is **not hardcoded** in the code for safety purpose
-1. create your project folder and crate a new file with ".env" name
+1. create your project folder and create a new file with ".env" name
 2. Open `.env` and paste this line:
    GEMINI_API_KEY=your_api_key_here
    Replace `your_api_key_here` with the key you copied from Google AI Studio.
