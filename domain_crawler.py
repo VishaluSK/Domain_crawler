@@ -6,13 +6,15 @@ from urllib.parse import urljoin, urlparse
 from collections import deque
 from dotenv import load_dotenv
 import google.generativeai as genai
+import streamlit as st
 
-# ----------------- Load Gemini API Key from .env -----------------
+# ----------------- Load Gemini API Key -----------------
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not GEMINI_API_KEY:
-    raise ValueError("❌ GEMINI_API_KEY not found. Please add it in your .env file.")
+    st.error("❌ GEMINI_API_KEY not found. Please add it in your .env file.")
+    st.stop()
 
 # Configure Gemini
 genai.configure(api_key=GEMINI_API_KEY)
@@ -31,10 +33,10 @@ def crawl_domain(start_url, max_pages=10):
             continue
 
         try:
-            print(f"Crawling: {url}")
+            st.info(f"Crawling: {url}")
             response = requests.get(url, headers=headers, timeout=10)
             if response.status_code != 200:
-                print(f"❌ Status code {response.status_code} for {url}")
+                st.warning(f"❌ Status code {response.status_code} for {url}")
                 continue
 
             visited.add(url)
@@ -52,18 +54,17 @@ def crawl_domain(start_url, max_pages=10):
                 if urlparse(href).netloc == urlparse(start_url).netloc and href not in visited:
                     queue.append(href)
 
-            time.sleep(0.5)  # polite delay for crawling
+            time.sleep(0.5)
         except Exception as e:
-            print(f"❌ Error crawling {url}: {e}")
+            st.error(f"❌ Error crawling {url}: {e}")
 
     return results
 
 # ----------------- Gemini Summarizer -----------------
 def gemini_summarize(pages):
     results = []
-
     if not pages:
-        print("No pages to summarize.")
+        st.warning("No pages to summarize.")
         return results
 
     for page in pages:
@@ -73,19 +74,17 @@ def gemini_summarize(pages):
                 prompt = f"Summarize this webpage content:\n\n{page['content']}"
                 response = model.generate_content(prompt)
                 summary = response.text
-                break  # success → exit retry loop
-
+                break
             except Exception as e:
                 error_message = str(e)
                 if "quota_metric" in error_message or "retry_delay" in error_message:
-                    print("⚠️ API rate limit reached. Waiting 30 seconds before retry...")
+                    st.warning("⚠️ API rate limit reached. Waiting 30 seconds before retry...")
                     time.sleep(30)
                     retries -= 1
                     continue
                 else:
                     summary = f"Error summarizing page: {e}"
                     break
-
         else:
             summary = "⚠️ Failed to summarize after multiple retries."
 
@@ -94,26 +93,29 @@ def gemini_summarize(pages):
             "summary": summary
         })
 
-        time.sleep(1)  # polite delay between summaries
+        time.sleep(1)
 
     return results
 
-# ----------------- Main Execution -----------------
-if __name__ == "__main__":
-    start_url = input("Enter the website URL to crawl: ").strip()
-    if not start_url.startswith("http"):
-        start_url = "https://" + start_url
+# ----------------- Streamlit UI -----------------
+st.set_page_config(page_title="Domain Crawler + Gemini Summarizer", layout="wide")
+st.title("🌐 Domain Crawler + Gemini Summarizer")
 
-    # Step 1: Crawl domain
-    pages = crawl_domain(start_url, max_pages=10)
-    print(f"\n✅ Crawled {len(pages)} pages")
+url_input = st.text_input("Enter the website URL:")
 
-    # Step 2: Summarize pages
-    summaries = gemini_summarize(pages)
+if st.button("Crawl & Summarize") and url_input:
+    if not url_input.startswith("http"):
+        url_input = "https://" + url_input
 
-    # Step 3: Print results
-    print("\n===== Domain Crawl + Gemini Summaries =====\n")
+    with st.spinner("Crawling pages..."):
+        pages = crawl_domain(url_input, max_pages=10)
+    st.success(f"✅ Crawled {len(pages)} pages")
+
+    with st.spinner("Generating summaries with Gemini..."):
+        summaries = gemini_summarize(pages)
+
+    st.subheader("Summaries")
     for res in summaries:
-        print(f"URL: {res['url']}")
-        print(f"Summary: {res['summary']}")
-        print("-" * 50)
+        st.markdown(f"**URL:** {res['url']}")
+        st.markdown(f"**Summary:** {res['summary']}")
+        st.markdown("---")

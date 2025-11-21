@@ -35,4 +35,4 @@ then, activate the created enviornment
 env\scripts\activate
 
 execute the file
-python filename.py
+streamlit run domain_crawler.py
