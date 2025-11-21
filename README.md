@@ -34,5 +34,5 @@ pip install -r requirements.txt
 then, activate the created enviornment
 env\scripts\activate
 
-execute the file
+for the execution of file- 
 streamlit run domain_crawler.py
